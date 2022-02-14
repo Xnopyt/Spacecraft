@@ -19,7 +19,7 @@ void sdio_handler()
 
 		if (buffer[0] == 0xAA)
 		{
-			config cfg;
+			config_t cfg;
 			if (config_load(&cfg) == 0x900D0007)
 			{
 				cfg.reflash = 1;
