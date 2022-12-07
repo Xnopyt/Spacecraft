@@ -116,9 +116,17 @@ static void draw_table(const char *msg, int off_x, int off_y, int size)
             int color = 0xFFFFFF;
             switch(msg[i])
             {
-                // Only Black & White
                 case ' ': color = 0x000000; break;
-                case 'O': color = 0xFFFFFF; break;
+                case 'L': color = 0xBBBBBB; break;
+                case 'R': color = 0xFF0000; break;
+                case 'G': color = 0x00FF00; break;
+                case 'B': color = 0x0000FF; break;
+                case 'W': color = 0xFFFFFF; break;
+                case 'M': color = 0xFF00FF; break;
+                case 'Y': color = 0xFFFF00; break;
+                case 'C': color = 0x00FFFF; break;
+                case 'O': color = 0xFF4500; break;
+                case 'A': color = 0xD3D3D3; break;
             }
             draw_square(off_x, off_y, x, y, size, color);
         }
@@ -150,7 +158,7 @@ const char *no_bin =
     "O  OO O   O  O   O  O  O  OO\n"
     "O   O OOOOO  OOOO  OOO O   O\n"
 ;
-#if 0
+
 const char *rocket_1 =
     "      L      \n"
     "     LOL     \n"
@@ -256,7 +264,7 @@ const char *stage_cleared =
     "O*****O*****O*****OOOOO*O*O**O*****O***O\n"
     "*OOOO*OOOOO*OOOOO*O***O*O**O*OOOOO*OOOO*\n"
 ;
-#endif
+
 const char *update =
     "O***O*OOOO**OOOO****O***OOOOO*OOOOO\n"
     "O***O*O***O*O***O**O*O****O***O****\n"
@@ -280,7 +288,7 @@ const char *failed =
     "**O*****OOOOO*O*O*****O*****O***O**\n"
     "**O*****O***O*O*OOOOO*OOOOO*OOOO***\n"
 ;
-#if 0
+
 static bool is_stage_cleared()
 {
     uint32_t *fb = (uint32_t *) g_framebuffer;
@@ -293,7 +301,6 @@ static bool is_stage_cleared()
     
     return true;
 }
-#endif
 
 static void modchip_send(sdmmc_t *sdmmc, uint8_t *buf)
 {
@@ -457,12 +464,46 @@ int main(void) {
 
             display_backlight(true);
 
-            while (true)
+            const char * rockets[] = { rocket_1, rocket_2, rocket_3 };
+
+            int idx = 0;
+            int rocket_x = 558;
+            int ball_x = 605;
+            int ball_y = -100;
+            while (!is_stage_cleared())
             {
                 uint32_t btn = btn_read();
-                if (btn & BTN_POWER)
-                    break;
+                if (ball_y <= -100 && btn & BTN_POWER)
+                {
+                    ball_x = rocket_x + 47;
+                    ball_y = 340;
+                }
+                else if (ball_y > -100)
+                {
+                    draw_table(ball, ball_x, ball_y, 5);
+                    ball_y -= 20;
+                }
+
+                if (btn & BTN_VOL_DOWN)
+                    rocket_x -= 10;
+
+                if (btn & BTN_VOL_UP)
+                    rocket_x += 10;
+
+                if (rocket_x < -100)
+                    rocket_x = -100;
+
+                if (rocket_x > 1180)
+                    rocket_x = 1180;
+
+                draw_table(rockets[++idx % 3], rocket_x, 420, 15);
+
+                mdelay(45);
             }
+
+            draw_table(stage_cleared, 50, 180, 30);
+
+            mdelay(3000);
 
             display_backlight(false);
 
