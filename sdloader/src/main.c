@@ -116,8 +116,8 @@ static void draw_table(const char *msg, int off_x, int off_y, int size)
             int color = 0xFFFFFF;
             switch(msg[i])
             {
-                case ' ': color = 0x000000; break;
-                case 'L': color = 0xBBBBBB; break;
+                case ' ': color = 0xBBBBBB; break;
+                case 'L': color = 0x000000; break;
                 case 'R': color = 0xFF0000; break;
                 case 'G': color = 0x00FF00; break;
                 case 'B': color = 0x0000FF; break;
@@ -447,7 +447,7 @@ int main(void) {
         {
             setup_display();
 
-            memset(g_framebuffer, 0x00, (720 + 48) * 1280 * 4);
+            memset(g_framebuffer, 0xBB, (720 + 48) * 1280 * 4);
 
             if (ret == -1)
                 draw_table(no_sd, 50, 50, 50);
@@ -470,6 +470,7 @@ int main(void) {
             int rocket_x = 558;
             int ball_x = 605;
             int ball_y = -100;
+            int power_timer = 0;
             while (!is_stage_cleared())
             {
                 uint32_t btn = btn_read();
@@ -498,12 +499,23 @@ int main(void) {
 
                 draw_table(rockets[++idx % 3], rocket_x, 420, 15);
 
+                if (btn & BTN_POWER) {
+                    power_timer++;
+                } else {
+                    power_timer = 0;
+                }
+
+                if (power_timer > 65) {
+                    break;
+                }
+
                 mdelay(45);
             }
 
-            draw_table(stage_cleared, 50, 180, 30);
-
-            mdelay(3000);
+            if (power_timer < 66) {
+                draw_table(stage_cleared, 50, 180, 30);
+                mdelay(3000);
+            }
 
             display_backlight(false);
 
@@ -516,7 +528,7 @@ int main(void) {
         modchip_send(&emmc_sdmmc, modchip_buf);
         setup_display();
 
-        memset(g_framebuffer, 0x00, (720 + 48) * 1280 * 4);
+        memset(g_framebuffer, 0xBB, (720 + 48) * 1280 * 4);
 
         display_backlight(true);
         draw_table(update, 115, 100, 30);
