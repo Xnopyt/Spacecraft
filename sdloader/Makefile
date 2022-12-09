@@ -134,7 +134,7 @@ $(OUTPUT).bin	:	$(OUTPUT).elf
 	@echo built ... $(notdir $@)
 	
 $(OUTPUT).bin.enc	:	$(OUTPUT).bin
-	@python $(TOPDIR)/sign_bootloader.py $<
+	@python2 $(TOPDIR)/sign_bootloader.py $<
 	@echo "const uint8_t payload[] = { " > $(TOPDIR)/payload.h
 	@xxd --include $(TOPDIR)/sdloader.bin.enc | tail -n +2 >> $(TOPDIR)/payload.h
 	@cp -f $(TOPDIR)/payload.h $(TOPDIR)/../firmware/src/payload.h
