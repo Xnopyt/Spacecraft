@@ -116,8 +116,8 @@ static void draw_table(const char *msg, int off_x, int off_y, int size)
             int color = 0xFFFFFF;
             switch(msg[i])
             {
-                case ' ': color = 0xBBBBBB; break;
-                case 'L': color = 0x000000; break;
+                case ' ': color = 0x000000; break;
+                case 'L': color = 0xBBBBBB; break;
                 case 'R': color = 0xFF0000; break;
                 case 'G': color = 0x00FF00; break;
                 case 'B': color = 0x0000FF; break;
@@ -382,7 +382,7 @@ int main(void) {
         {
             setup_display();
 
-            memset(g_framebuffer, 0xBB, (720 + 48) * 1280 * 4);
+            memset(g_framebuffer, 0x00, (720 + 48) * 1280 * 4);
 
             if (ret == -1)
                 draw_table(no_sd, 50, 50, 50);
