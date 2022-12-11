@@ -97,7 +97,7 @@ static void draw_square(int off_x, int off_y, int x, int y, int multi, int color
                 fb_coord(start_x + i, start_y + j) = color;
 }
 
-static void draw_table(const char *msg, int off_x, int off_y, int size)
+static void draw_table(const char *msg, int off_x, int off_y, int size, bool aula)
 {    
     int x = 0;
     int y = 0;
@@ -116,8 +116,8 @@ static void draw_table(const char *msg, int off_x, int off_y, int size)
             int color = 0xFFFFFF;
             switch(msg[i])
             {
-                case ' ': color = 0x000000; break;
-                case 'L': color = 0xBBBBBB; break;
+                case ' ': if (aula) color = 0x000000; else color = 0xBBBBBB; break;
+                case 'L': if (aula) color = 0xBBBBBB; else color = 0x000000; break;
                 case 'R': color = 0xFF0000; break;
                 case 'G': color = 0x00FF00; break;
                 case 'B': color = 0x0000FF; break;
@@ -289,14 +289,14 @@ const char *failed =
     "**O*****O***O*O*OOOOO*OOOOO*OOOO***\n"
 ;
 
-static bool is_stage_cleared()
+static bool is_stage_cleared(bool aula)
 {
     uint32_t *fb = (uint32_t *) g_framebuffer;
 #define fb_coord(x, y) (fb[(y) + (1280 - (x)) * (720 + 48)])
     
     for (int x = 10; x < 1270; x++)
         for (int y = 10; y < 340; y++)
-            if ((fb_coord(x, y) & 0xFFFFFF) != 0x000000)
+            if (((fb_coord(x, y) & 0xFFFFFF) != 0x000000 && aula) || ((fb_coord(x, y) & 0xFFFFFF) != 0xBBBBBB && !aula))
                 return false;
     
     return true;
@@ -380,16 +380,21 @@ int main(void) {
 
         if (ret != 0)
         {
+            int aula = ((fuse_get_reserved_odm(4) & 0xF0000) >> 16) == 4;
+
             setup_display();
 
-            memset(g_framebuffer, 0x00, (720 + 48) * 1280 * 4);
+            if (aula)
+                memset(g_framebuffer, 0x00, (720 + 48) * 1280 * 4);
+            else
+                memset(g_framebuffer, 0xBB, (720 + 48) * 1280 * 4);
 
             if (ret == -1)
-                draw_table(no_sd, 50, 50, 50);
+                draw_table(no_sd, 50, 50, 50, aula);
             else if (ret == -2)
-                draw_table(no_bin, 52, 52, 42);
+                draw_table(no_bin, 52, 52, 42, aula);
             else if (ret == -3)
-                draw_table(big_bin, 48, 48, 37);
+                draw_table(big_bin, 48, 48, 37, aula);
             else if (ret == 1)
             {
                 sdmmc_finish(&emmc_sdmmc);
@@ -406,7 +411,7 @@ int main(void) {
             int ball_x = 605;
             int ball_y = -100;
             int power_timer = 0;
-            while (!is_stage_cleared())
+            while (!is_stage_cleared(aula))
             {
                 uint32_t btn = btn_read();
                 if (ball_y <= -100 && btn & BTN_POWER)
@@ -416,7 +421,7 @@ int main(void) {
                 }
                 else if (ball_y > -100)
                 {
-                    draw_table(ball, ball_x, ball_y, 5);
+                    draw_table(ball, ball_x, ball_y, 5, aula);
                     ball_y -= 20;
                 }
 
@@ -432,7 +437,7 @@ int main(void) {
                 if (rocket_x > 1180)
                     rocket_x = 1180;
 
-                draw_table(rockets[++idx % 3], rocket_x, 420, 15);
+                draw_table(rockets[++idx % 3], rocket_x, 420, 15, aula);
 
                 if (btn & BTN_POWER) {
                     power_timer++;
@@ -448,7 +453,7 @@ int main(void) {
             }
 
             if (power_timer < 66) {
-                draw_table(stage_cleared, 50, 180, 30);
+                draw_table(stage_cleared, 50, 180, 30, aula);
                 mdelay(3000);
             }
 
