@@ -14,24 +14,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "mmc_defs.h"
-#include <adc.h>
-#include <board.h>
-#include <board_id.h>
-#include <clock.h>
-#include <config.h>
-#include <delay.h>
-#include <device.h>
-#include <fpga.h>
 #include <glitch.h>
+#include <fpga.h>
+#include <device.h>
+#include <adc.h>
 #include <leds.h>
-#include <mmc.h>
-#include <payload.h>
-#include <sdio.h>
 #include <string.h>
-#include <timer.h>
+#include <delay.h>
+#include <mmc.h>
+#include <config.h>
+#include <payload.h>
+#include "mmc_defs.h"
 
-typedef struct
+typedef struct 
 {
 	uint8_t *data;
 	uint32_t datalen;
@@ -52,7 +47,7 @@ int mmc_sniff_parser_parse(mmc_sniff_parser_ctx *ctx)
 
 	uint8_t *data = ctx->data;
 	char flags = data[0];
-
+	
 	int ret = 0;
 	if (flags & 0x40)
 	{
@@ -106,7 +101,7 @@ int read_glitch_result(uint8_t *buf)
 }
 
 uint16_t erista_offsets[] = { 825, 830, 835, 840, 845, 850, 855, 860, 865, 870, 875, 880, 885, 890, 895, 900, 905 };
-uint16_t mariko_offsets[] = { 800, 805, 810, 815, 820, 825, 830, 835, 840, 845, 850, 855, 860, 865, 870, 875, 880 };
+uint16_t mariko_offsets[] = { 820, 825, 830, 835, 840, 845, 850, 855, 860, 865, 870, 875, 880 };
 
 uint32_t rand_seed = 0;
 int rand()
@@ -115,15 +110,19 @@ int rand()
 	return rand_seed;
 }
 
-int glitch(logger* lgr, session_info_t* session_info)
+int glitch(logger *lgr)
 {
-	timer2_init();
+	uint32_t start_time = SysTick->VAL;
 
-	config_t cfg;
+	config cfg;
 	int needs_reflash = config_load(&cfg) == 0xBAD0010B || cfg.reflash;
+ 
+	//qsort();
 
 	enum DEVICE_TYPE device = detect_device_type();
-	struct adc_param adc_min_values = {0};
+	struct adc_param adc_min_values;
+	adc_min_values.min_value = 0;
+	adc_min_values.other_value = 0;
 	int ret = init_device_specific_adc(device, &adc_min_values);
 
 	uint16_t *offsets;
@@ -152,55 +151,49 @@ int glitch(logger* lgr, session_info_t* session_info)
 	uint16_t adc_goal = 0;
 	if (!ret)
 	{
-		session_info->was_the_device_reset = 0;
+		int was_the_device_reset = 0;
 		while (1)
 		{
 			uint16_t adc_read;
-			ret = adc_wait_for_min_value(lgr, adc_min_values.glitch_power_threshold, &adc_read);
-			if (adc_read >= adc_min_values.glitch_power_threshold)
+			ret = adc_wait_for_min_value(lgr, adc_min_values.other_value, &adc_read);
+			if (adc_min_values.other_value <= adc_read)
 			{
-				adc_goal = adc_min_values.glitch_power_threshold;
+				adc_goal = adc_min_values.other_value;
 				break;
 			}
-			if (adc_read >= adc_min_values.poweron_threshold)
+			if (adc_read >= adc_min_values.min_value)
 			{
-				adc_goal = adc_min_values.poweron_threshold;
+				adc_goal = adc_min_values.min_value;
 				ret = 0;
 				break;
 			}
-			if (session_info->was_the_device_reset && ret)
-			{
-				break;
-			}
-			if (!session_info->was_the_device_reset)
+
+			if (!was_the_device_reset)
 			{
 				fpga_reset_device(0);
-				session_info->was_the_device_reset = 1;
+				was_the_device_reset = 1;
 			}
 		}
 	}
-	
-	session_info->power_threshold_reached_us = timer2_get_total();
 
-	glitch_cfg_t glitch_cfg;
-	glitch_cfg.rng = 11;
+	struct glitch_config glitch_cfg;
+	glitch_cfg.rng = 3;
 	if (device == DEVICE_TYPE_ERISTA)
 	{
 		glitch_cfg.width = 35;
-		glitch_cfg.offset = 850;
+		glitch_cfg.offset = 876;
 	}
 	else
 	{
-		glitch_cfg.width = 65;
-		glitch_cfg.offset = 850;
+		glitch_cfg.width = 53;
+		glitch_cfg.offset = 1210;
 	}
 
 	unsigned int saved_idx = 0;
 
 	char packages[128];
 	memset(packages, 0, sizeof(packages));
-	session_info->glitch_attempt = 0;
-	int cycle = 0;
+	int glitch_retries = 0;
 	if (!ret)
 	{
 		lgr->glitching_started();
@@ -208,30 +201,28 @@ int glitch(logger* lgr, session_info_t* session_info)
 		int package_index = 0;
 		while (!ret)
 		{
-			if (++session_info->glitch_attempt >= 1200)
+			if (++glitch_retries >= 1200)
 			{
 				ret = 0xBAD00124;
 				break;
 			}
 
-			if (session_info->glitch_attempt > 0 && (session_info->glitch_attempt % 400) == 0)
+			if (glitch_retries >= 400)
 			{
-				saved_idx = cfg.count;
+				glitch_retries = 0;
+				saved_idx = cfg.idx;
 				needs_reflash = 1;
 			}
 
 			if (adc_wait_eoc_read() < adc_goal)
 			{
-				ret = device == DEVICE_TYPE_LITE
-					? adc_wait_for_min_value(lgr, adc_goal - 100, 0)
-					: adc_wait_for_min_value(lgr, adc_goal, 0);
+				ret = adc_wait_for_min_value(lgr, adc_goal, 0);
 				if (ret)
 					break;
-				session_info->adc_goal_reached_us = timer2_get_total();
 			}
 
 			if (!rand_seed)
-				rand_seed = SysTick->VAL;
+				rand_seed = SysTick->VAL - start_time;
 
 			if (needs_reflash)
 			{
@@ -241,75 +232,55 @@ int glitch(logger* lgr, session_info_t* session_info)
 					cfg.reflash = 0;
 					config_save(&cfg);
 				}
-
-				if (!session_info->payload_flashed && !fpga_sync_failed)
-				{
-					uint8_t cid[16];
-					ret = flash_payload(cid, device);
-					lgr->payload_flash_res_and_cid(ret, cid);
-					if (ret != 0x900D0008)
-						break;
-					session_info->payload_flashed = 1;
-				}
-				glitch_cfg.width = 70;
+				uint8_t cid[16];
+				ret = flash_payload(cid, device);
+				lgr->payload_flash_res_and_cid(ret, cid);
+				if (ret != 0x900D0008)
+					break;
+				ret = 0;
 			}
-			if (saved_idx >= cfg.count)
+
+			if (saved_idx < cfg.idx)
 			{
-				// Exhausted all previously successful configurations. Find a new one at next offset table entry.
-				if (++offset_idx >= offsets_count)
+				if (glitch_cfg.rng == 3)
+				{
+					glitch_cfg.width = cfg.timings[saved_idx].width;
+					glitch_cfg.offset = cfg.timings[saved_idx].offset;
+					glitch_cfg.rng = 0;
+					++saved_idx;
+				}
+				else
+					++glitch_cfg.rng;
+			}
+			else
+			{
+				if (offsets_count <= ++offset_idx)
 					offset_idx = 0;
 				glitch_cfg.offset = offsets[offset_idx];
 				glitch_cfg.rng = rand() & 3;
 			}
-			else if (glitch_cfg.rng == 11)
+			
+			if (glitch_cfg.width <= 200)
 			{
-				glitch_cfg.width = cfg.timings[saved_idx].width;
-				glitch_cfg.offset = cfg.timings[saved_idx].offset;
-				glitch_cfg.rng = 0;
-
-				switch (cycle)
-				{
-				case 0:
-					cycle = 1;
-					break;
-				case 1:
-					glitch_cfg.offset++;
-					cycle = 2;
-					break;
-				default:
-					glitch_cfg.offset--;
-					cycle = 0;
-					saved_idx++;
-					break;
-				}
+				if (glitch_cfg.width <= 1)
+					glitch_cfg.width = 2;
 			}
 			else
 			{
-				glitch_cfg.rng++;
-			}
-			if (glitch_cfg.width > 70)
-			{
-				glitch_cfg.width = 70;
-				saved_idx = cfg.count;
-				needs_reflash = 1;
-			}
-			else if (glitch_cfg.width <= 15)
-			{
-				glitch_cfg.width = 15;
-				saved_idx = cfg.count;
-				needs_reflash = 1;
+				glitch_cfg.width = 200;
 			}
 			fpga_glitch_device(&glitch_cfg);
-
-			uint32_t mmc_flags;
-			uint32_t glitch_flags;
-			do
+			int success;
+			uint32_t flags;
+			while (1)
 			{
-				mmc_flags = fpga_read_mmc_flags();
-				glitch_flags = fpga_read_glitch_flags();
-			} while ((mmc_flags & 6) == 0);
-			int success = mmc_flags & 0x02;
-			session_info->glitch_complete_us = timer2_get_total();
+				flags = fpga_read_mmc_flags();
+				success = flags & 2;
+				if (flags & 2 || flags & 4)
+					break;
+				fpga_read_glitch_flags();
+			}
+			int flag_a = fpga_read_glitch_flags();
 
 			uint8_t data[512];
 			int datalen = read_glitch_result(data);
@@ -330,7 +301,7 @@ int glitch(logger* lgr, session_info_t* session_info)
 					packet_res = 2;
 			}
 
-			lgr->_2_and_3(&glitch_cfg, mmc_flags, datalen, data, glitch_flags);
+			lgr->_2_and_3(&glitch_cfg, flags, datalen, data, flag_a);
 			packages[package_index] = packet_res;
 			package_index = (package_index + 1) & 7;
 			int too_short_count = 0;
@@ -345,15 +316,15 @@ int glitch(logger* lgr, session_info_t* session_info)
 					++all_package_count;
 					switch (c)
 					{
-					case 1:
-						++packet_res_1_count;
-						break;
-					case 2:
-						++packet_res_2_count;
-						break;
-					case 3:
-						++too_short_count;
-						break;
+						case 1:
+							++packet_res_1_count;
+							break;
+						case 2:
+							++packet_res_2_count;
+							break;
+						case 3:
+							++too_short_count;
+							break;
 					}
 				}
 			}
@@ -365,49 +336,31 @@ int glitch(logger* lgr, session_info_t* session_info)
 					ret = 0xBAD00108;
 					break;
 				}
-				if (max_packet_res_1_count > packet_res_1_count)
+				else
 				{
-					if (packet_res_2_count > 4)
+					if (max_packet_res_1_count > packet_res_1_count)
 					{
-						glitch_cfg.width++;
+						if (packet_res_2_count > 4)
+						{
+							glitch_cfg.width++;
+							memset(packages, 0, sizeof(packages));
+						}
+					}
+					else
+					{
+						glitch_cfg.width--;
 						memset(packages, 0, sizeof(packages));
 					}
 				}
-				else
-				{
-					glitch_cfg.width--;
-					memset(packages, 0, sizeof(packages));
-				}
 			}
-
 			if (success)
 			{
-				// Confirm glitch success by awaiting command over eMMC bus.
-				// This detects false-positives.
-				fpga_enter_cmd_mode();
-				unsigned int max_flag_reads = 200000; // allow up to 1s for emmc init + response
-				int flag_reads;
-				for (flag_reads = 0; flag_reads < max_flag_reads; flag_reads++)
+				if (config_add_new(&cfg, &glitch_cfg) == 0x900D0007)
 				{
-					if (fpga_read_mmc_flags() & 0x10)
-						break;
+					lgr->new_config_and_save(&glitch_cfg, config_save(&cfg));
 				}
-
-				if (flag_reads > 0)
-				{
-					session_info->glitch_confirm_us = timer2_get_total();
-					session_info->flag_reads_before_glitch_confirmed = flag_reads;
-					session_info->total_time_us = timer_get_global_total();
-					session_info->glitch_cfg = glitch_cfg;
-
-					if (config_add_new(&cfg, &glitch_cfg) == 0x900D0007)
-					{
-						lgr->new_config_and_save(&glitch_cfg, config_save(&cfg));
-					}
-
-					ret = 0x900D0006;
-					break; // glitch confirmed, don't retry
-				}
+				ret = 0x900D0006;
+				break;
 			}
 		}
 	}

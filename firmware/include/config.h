@@ -20,8 +20,6 @@
 #include <stdint.h>
 #include <fpga.h>
 
-#define CONFIG_MAGIC 0x01584E53
-
 typedef struct
 {
 	uint16_t offset;
@@ -32,15 +30,15 @@ typedef struct
 typedef struct 
 {
 	uint32_t magic;
-	uint32_t count;
+	uint32_t idx;
 	timing_t timings[32];
 	uint8_t reflash;
-} config_t;
+} config;
 
-void config_clear(config_t *cfg);
-uint32_t config_load(config_t *cfg);
-uint32_t config_add_new(config_t *cfg, glitch_cfg_t *new_cfg);
-uint32_t config_save(config_t *cfg);
+void config_clear(config *cfg);
+uint32_t config_load(config *cfg);
+uint32_t config_add_new(config *cfg, struct glitch_config *new_cfg);
+uint32_t config_save(config *cfg);
 uint32_t config_reset();
 
 #endif

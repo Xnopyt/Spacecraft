@@ -25,7 +25,7 @@ INCLUDES	:=	include ../GD32F3x0_standard_peripheral/include
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------
-ARCH	:=	-mcpu=cortex-m4 -march=armv7e-m -munaligned-access
+ARCH	:=	-mcpu=cortex-m4 -march=armv7e-m
 #-mthumb -mthumb-interwork
 
 CFLAGS	:= \
@@ -39,7 +39,6 @@ CFLAGS	:= \
 		-Werror \
 		-Wall \
 		-fshort-wchar \
-		-fstrict-volatile-bitfields \
 		$(ARCH) $(DEFINES)
 
 CFLAGS	+=	$(INCLUDE) -DGD32F350

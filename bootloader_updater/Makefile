@@ -35,6 +35,7 @@ CFLAGS	:= \
 		-fomit-frame-pointer \
 		-fno-inline \
 		-std=gnu11 \
+		-Werror \
 		-Wall \
 		-fshort-wchar \
 		$(ARCH) $(DEFINES)

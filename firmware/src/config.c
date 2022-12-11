@@ -18,17 +18,18 @@
 #include <config.h>
 #include <string.h>
 
-void config_clear(config_t *cfg)
+void config_clear(config *cfg)
 {
 	memset(cfg->timings, 0xFF, sizeof(cfg->timings));
 	cfg->magic = 0;
-	cfg->count = 0;
+	cfg->idx = 0;
 }
 
-uint32_t config_load(config_t *cfg)
+uint32_t config_load(config *cfg)
 {
-	memcpy(cfg, (const void *)0x801FC00, sizeof(config_t));
-	if (cfg->magic != CONFIG_MAGIC)
+	const void* volatile ptr = (const void *)0x801FC00;
+	memcpy(cfg, ptr, sizeof(config));
+	if (cfg->magic != 0x01584E53)
 	{
 		config_clear(cfg);
 		return 0xBAD0010B;
@@ -42,14 +43,14 @@ uint32_t config_load(config_t *cfg)
 		if (cfg->timings[i].offset == 0xFFFF)
 			break;
 	}
-	cfg->count = i;
+	cfg->idx = i;
 
 	return 0x900D0007;
 }
 
-uint32_t config_add_new(config_t *cfg, glitch_cfg_t *new_cfg)
+uint32_t config_add_new(config *cfg, struct glitch_config *new_cfg)
 {
-	for (int i = 0; i < cfg->count; i++)
+	for (int i = 0; i < cfg->idx; i++)
 	{
 		if (new_cfg->offset == cfg->timings[i].offset && new_cfg->width == cfg->timings[i].width)
 		{
@@ -58,14 +59,14 @@ uint32_t config_add_new(config_t *cfg, glitch_cfg_t *new_cfg)
 		}
 	}
 
-	unsigned int idx = cfg->count;
+	unsigned int idx = cfg->idx;
 	if (idx >= 32)
 		return 0xBAD00125;
 
 	cfg->timings[idx].offset = new_cfg->offset;
 	cfg->timings[idx].width = new_cfg->width;
 	cfg->timings[idx].success = 1;
-	cfg->count++;
+	cfg->idx++;
 
 	return 0x900D0007;
 }
@@ -106,13 +107,13 @@ char burn_flash(uint8_t *dest, uint8_t *src, uint32_t len)
 	return 1;
 }
 
-uint32_t config_save(config_t *cfg)
+uint32_t config_save(config *cfg)
 {
 	cfg->magic = 0x01584E53;
  
-	for (int i = 0; i < cfg->count; i++)
+	for (int i = 0; i < cfg->idx; i++)
 	{
-		for (int j = 0; j < cfg->count; j++)
+		for (int j = 0; j < cfg->idx; j++)
 		{
 			if (cfg->timings[i].success > cfg->timings[j].success)
 			{
@@ -126,7 +127,7 @@ uint32_t config_save(config_t *cfg)
 	if (!erase_flash((uint8_t *)0x801FC00))
 		return 0xBAD00109;
  
-	if (!burn_flash((uint8_t *) 0x801FC00, (uint8_t *) cfg, sizeof(config_t)))
+	if (!burn_flash((uint8_t *) 0x801FC00, (uint8_t *) cfg, sizeof(config)))
 		return 0xBAD0010A;
  
 	return 0x900D0007;
