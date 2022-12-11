@@ -296,7 +296,7 @@ static bool is_stage_cleared()
     
     for (int x = 10; x < 1270; x++)
         for (int y = 10; y < 340; y++)
-            if ((fb_coord(x, y) & 0xFFFFFF) != 0xBBBBBB)
+            if ((fb_coord(x, y) & 0xFFFFFF) != 0x000000)
                 return false;
     
     return true;
