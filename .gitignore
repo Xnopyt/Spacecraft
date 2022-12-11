@@ -4,3 +4,5 @@ build
 *.a
 *.DS_Store
 !firmware.bin
+!bootloader.bin
+!bootloader_updater.bin
