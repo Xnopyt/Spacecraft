@@ -2,5 +2,4 @@ build
 *.elf
 *.bin
 *.bin.bct
-*.bin.enc
 payload.h

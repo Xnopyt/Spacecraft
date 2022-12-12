@@ -1,31 +1,22 @@
 # Spacecraft-NX-MOD
 
-[Latest modded firmware.bin (v3)](https://github.com/KazushiMe/Spacecraft-NX/raw/master/firmware/firmware.bin)
-
 - Resolved "NO SD" issues on Mariko (for some Samsung/Kingston cards)
+- Power off by holding power for 3 seconds while on "NO SD" screen
 - Boot to OFW by holding down VOL + (works with/without SD card)
   - Usage: Hold down VOL +, then press POWER. Release VOL + when modchip LED turns off or the logo shows up.
-
-⬆️ Above 2 features/fixes may be merged soon. [See Pull Request](https://github.com/Spacecraft-NX/sdloader/pull/2) ⬆️
-
-**Additions:**
+- Glitching behaviour from HWFLY-NX merged in (No toolbox or SD card firmware update supported)
+- Resolved staircasing text issue when debugging over serial
 
 - Atmosphere-NX Updater
   - Place `package3` and `stratosphere.romfs` in the root directory (preferably via FTP) to update at boot time, since only these 2 files cannot be replaced in HorizonOS.
   - Say farewell to the annoying procedure of entering UMS Mode, plugging into PC, replacing files, disconnecting and reboot.
 - Add fail-safe/secondary payload support: `bootloader/update.bin` from Hekate
-- OLED-friendly "GUI": monochrome, black background color
-- Strip unused log/functions and built-in game to reduce binary size
-
-- [TODO] Reboot2Payload-like implementation (INI parser?)
+- OLED-friendly "GUI": monochrome, black background color that only shows on OLED console
 
 ## How to update firmware w/o taking it apart
 
-- If you have flashed Spacecraft-NX, you could update the firmware and built-in payload(sdloader) by putting `firmware.bin` in the root of your SD card.
-- To reflash/downgrade the firmware regardless of firmware version, create a file called `.force_update`. (Windows users might find it hard to create dot files, just grab one in the repo.)
-- Some might stuck with green LED at boot. Unfortunately, the only resolution is to connect the chip with micro-USB debug port and reset it via serial interface.
-
-
+- If you have flashed HWFLY-NX, you could update the firmware and built-in payload(sdloader) by using HWFLY-toolbox
+- In order to flash back or from a different firmware it must be flashed with the usb bootloader or ST-Link
 
 ## What is this?
 
