@@ -97,7 +97,7 @@ static void draw_square(int off_x, int off_y, int x, int y, int multi, int color
                 fb_coord(start_x + i, start_y + j) = color;
 }
 
-static void draw_table(const char *msg, int off_x, int off_y, int size, bool aula)
+static void draw_table(const char *msg, int off_x, int off_y, int size, int aula)
 {    
     int x = 0;
     int y = 0;
@@ -289,7 +289,7 @@ const char *failed =
     "**O*****O***O*O*OOOOO*OOOOO*OOOO***\n"
 ;
 
-static bool is_stage_cleared(bool aula)
+static bool is_stage_cleared(int aula)
 {
     uint32_t *fb = (uint32_t *) g_framebuffer;
 #define fb_coord(x, y) (fb[(y) + (1280 - (x)) * (720 + 48)])
