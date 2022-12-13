@@ -4,8 +4,9 @@
 - Power off by holding power for 3 seconds while on "NO SD" screen
 - Boot to OFW by holding down VOL + (works with/without SD card)
   - Usage: Hold down VOL +, then press POWER. Release VOL + when modchip LED turns off or the logo shows up.
-- Glitching behaviour from HWFLY-NX merged in (No toolbox or SD card firmware update supported)
+- Glitching behaviour from HWFLY-NX merged in
 - Resolved staircasing text issue when debugging over serial
+- Support for HWFLY-Toolbox
 
 - Atmosphere-NX Updater
   - Place `package3` and `stratosphere.romfs` in the root directory (preferably via FTP) to update at boot time, since only these 2 files cannot be replaced in HorizonOS.
@@ -16,7 +17,7 @@
 ## How to update firmware w/o taking it apart
 
 - If you have flashed HWFLY-NX, you could update the firmware and built-in payload(sdloader) by using HWFLY-toolbox
-- In order to flash back or from a different firmware it must be flashed with the usb bootloader or ST-Link
+- Once flashed toolbox mode can be accessed by holding both volume buttons on power up and used the same as with HWFLY-NX
 
 ## What is this?
 

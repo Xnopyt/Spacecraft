@@ -321,25 +321,6 @@ static void modchip_send(sdmmc_t *sdmmc, uint8_t *buf)
     sdmmc_send_cmd(sdmmc, &cmd, &req, 0);
 }
 
-static void modchip_recv(sdmmc_t *sdmmc, uint8_t *buf)
-{
-    sdmmc_command_t cmd = {};
-    sdmmc_request_t req = {};
-
-    cmd.opcode = MMC_GO_IDLE_STATE;
-    cmd.arg = 0xAA5458BB;
-    cmd.flags = SDMMC_RSP_R1;
-
-    req.data = buf;
-    req.blksz = 512;
-    req.num_blocks = 1;
-    req.is_read = true;
-    req.is_multi_block = false;
-    req.is_auto_cmd12 = false;
-    
-    sdmmc_send_cmd(sdmmc, &cmd, &req, 0);
-}
-
 static void atmosphere_update(void)
 {
     FILINFO info;
@@ -394,6 +375,10 @@ int main(void) {
 
     sdmmc_init(&emmc_sdmmc, SDMMC_4, SDMMC_VOLTAGE_1V8, SDMMC_BUS_WIDTH_1BIT, SDMMC_SPEED_MMC_IDENT);
 
+    //Inform firmware glitch attempt succeded
+    modchip_buf[0] = 0x55;
+    modchip_send(&emmc_sdmmc, modchip_buf);
+
     if (!mount_sd())
     {
         mdelay(500);
@@ -408,224 +393,104 @@ int main(void) {
         ret = 1;
     }
     
-    if (ret == 0)
-    {
-        modchip_buf[0] = 0x44;
-        modchip_send(&emmc_sdmmc, modchip_buf);
-        do
-        {
-            mdelay(10);
-            modchip_recv(&emmc_sdmmc, modchip_buf);
-        }
-        while (modchip_buf[0] != (uint8_t) ~0x44);
-    }
-
-    FIL f;
-    FILINFO info;
-    uint32_t new_version = 0;
-    UINT br = 0;
-    if (ret != 0
-     || f_open(&f, "firmware.bin", FA_READ) != FR_OK
-     || f_lseek(&f, 0x150) != FR_OK
-     || f_read(&f, &new_version, 4, &br) != FR_OK
-     || (new_version <= *(uint32_t *) &modchip_buf[1] && f_stat(".force_update", &info) != FR_OK))
-    {
+    //If both volume buttons on held enter toolbox mode otherwise enter deep sleep
+    if (!((btn & BTN_VOL_UP) && (btn & BTN_VOL_DOWN))) {
         modchip_buf[0] = 0x55;
         modchip_send(&emmc_sdmmc, modchip_buf);
-
-        autohosoff();
-
-        if (ret == 0)
-        {
-            atmosphere_update();
-            ret = load_payload("payload.bin");
-            if (ret != 0)
-                ret = load_payload("bootloader/update.bin"); // Try loading hekate update.bin
-        }
-
-        if (ret != 0)
-        {
-            int aula = ((fuse_get_reserved_odm(4) & 0xF0000) >> 16) == 4;
-
-            setup_display();
-
-            if (aula)
-                memset(g_framebuffer, 0x00, (720 + 48) * 1280 * 4);
-            else
-                memset(g_framebuffer, 0xBB, (720 + 48) * 1280 * 4);
-
-            if (ret == -1)
-                draw_table(no_sd, 50, 50, 50, aula);
-            else if (ret == -2)
-                draw_table(no_bin, 52, 52, 42, aula);
-            else if (ret == -3)
-                draw_table(big_bin, 48, 48, 37, aula);
-            else if (ret == 1)
-            {
-                sdmmc_finish(&emmc_sdmmc);
-                unmount_sd();
-                panic(0x21); // Bypass fuse programming in package1.
-            }
-
-            display_backlight(true);
-
-            const char * rockets[] = { rocket_1, rocket_2, rocket_3 };
-
-            int idx = 0;
-            int rocket_x = 558;
-            int ball_x = 605;
-            int ball_y = -100;
-            int power_timer = 0;
-            while (!is_stage_cleared(aula))
-            {
-                uint32_t btn = btn_read();
-                if (ball_y <= -100 && btn & BTN_POWER)
-                {
-                    ball_x = rocket_x + 47;
-                    ball_y = 340;
-                }
-                else if (ball_y > -100)
-                {
-                    draw_table(ball, ball_x, ball_y, 5, aula);
-                    ball_y -= 20;
-                }
-
-                if (btn & BTN_VOL_DOWN)
-                    rocket_x -= 10;
-
-                if (btn & BTN_VOL_UP)
-                    rocket_x += 10;
-
-                if (rocket_x < -100)
-                    rocket_x = -100;
-
-                if (rocket_x > 1180)
-                    rocket_x = 1180;
-
-                draw_table(rockets[++idx % 3], rocket_x, 420, 15, aula);
-
-                if (btn & BTN_POWER) {
-                    power_timer++;
-                } else {
-                    power_timer = 0;
-                }
-
-                if (power_timer > 65) {
-                    break;
-                }
-
-                mdelay(45);
-            }
-
-            if (power_timer < 66) {
-                draw_table(stage_cleared, 50, 180, 30, aula);
-                mdelay(3000);
-            }
-
-            display_backlight(false);
-
-            display_end();
-        }
     }
-    else
+
+    autohosoff();
+
+    if (ret == 0)
     {
-        modchip_buf[0] = 0xAA;
-        modchip_send(&emmc_sdmmc, modchip_buf);
+        atmosphere_update();
+        ret = load_payload("payload.bin");
+        if (ret != 0)
+            ret = load_payload("bootloader/update.bin"); // Try loading hekate update.bin
+     }
+
+    if (ret != 0)
+    {
+        int aula = ((fuse_get_reserved_odm(4) & 0xF0000) >> 16) == 4;
+
         setup_display();
 
-        memset(g_framebuffer, 0xBB, (720 + 48) * 1280 * 4);
+        if (aula)
+            memset(g_framebuffer, 0x00, (720 + 48) * 1280 * 4);
+        else
+            memset(g_framebuffer, 0xBB, (720 + 48) * 1280 * 4);
+
+        if (ret == -1)
+            draw_table(no_sd, 50, 50, 50, aula);
+        else if (ret == -2)
+            draw_table(no_bin, 52, 52, 42, aula);
+        else if (ret == -3)
+            draw_table(big_bin, 48, 48, 37, aula);
+        else if (ret == 1)
+        {
+            sdmmc_finish(&emmc_sdmmc);
+            unmount_sd();
+            panic(0x21); // Bypass fuse programming in package1.
+        }
 
         display_backlight(true);
-        draw_table(update, 115, 100, 30);
-        
-        modchip_buf[0] = 2;
-        *(uint16_t *) &modchip_buf[1] = PING;
-        modchip_send(&emmc_sdmmc, modchip_buf);
-        do
-        {
-            mdelay(10);
-            modchip_recv(&emmc_sdmmc, modchip_buf);
-        }
-        while (modchip_buf[0] != (uint8_t) ~2);
-        if (*(uint32_t *) &modchip_buf[1] == ERROR_SUCCESS)
-        {
-            modchip_buf[0] = 6;
-            *(uint16_t *) &modchip_buf[1] = SET_OFFSET;
-            *(uint32_t *) &modchip_buf[3] = 0x3000;
-            modchip_send(&emmc_sdmmc, modchip_buf);
-            do
-            {
-                mdelay(10);
-                modchip_recv(&emmc_sdmmc, modchip_buf);
-            }
-            while (modchip_buf[0] != (uint8_t) ~6);
-            char last_progress = 0;
-            if (*(uint32_t *) &modchip_buf[1] == ERROR_SUCCESS)
-            {
-                if (f_lseek(&f, 0) == FR_OK)
-                {
-                    uint32_t file_size = f_size(&f);
-                    for (int i = 0; i < file_size; i += 64)
-                    {
-                        modchip_buf[0] = 64;
-                        f_sync(&f);
-                        if (f_read(&f, &modchip_buf[1], 64, &br) != FR_OK)
-                        {
-                            ret = -3;
-                            break;
-                        }
-                        
-                        modchip_send(&emmc_sdmmc, modchip_buf);
-                        do
-                        {
-                            mdelay(10);
-                            modchip_recv(&emmc_sdmmc, modchip_buf);
-                        }
-                        while (modchip_buf[0] != (uint8_t) ~64);
-                        
-                        if (*(uint32_t *) &modchip_buf[1] != ERROR_SUCCESS)
-                        {
-                            ret = -4;
-                            break;
-                        }
-                        
-                        char new_progress = (i * 100) / file_size;
-                        if (new_progress > 100)
-                            new_progress = 100;
-                        if (new_progress != last_progress)
-                        {
-                            last_progress = new_progress;
-                            draw_square(40, 354, last_progress, 0, 12, 0xFFFFFF);
-                        }
-                    }
-                }
-                else
-                    ret = -5;
-                f_close(&f);
-            }
-            else
-                ret = -2;
-        }
-        else
-            ret = -1;
 
-        if (ret == 0)
+        const char * rockets[] = { rocket_1, rocket_2, rocket_3 };
+
+        int idx = 0;
+        int rocket_x = 558;
+        int ball_x = 605;
+        int ball_y = -100;
+        int power_timer = 0;
+        while (!is_stage_cleared(aula))
         {
-            draw_table(done, 115, 380, 30);
-            // Remove .force_update or the device will stuck in a loop of updating firmware
-            if (f_stat(".force_update", &info) == FR_OK)
-                f_unlink(".force_update");
+            uint32_t btn = btn_read();
+            if (ball_y <= -100 && btn & BTN_POWER)
+            {
+                ball_x = rocket_x + 47;
+                ball_y = 340;
+            }
+            else if (ball_y > -100)
+            {
+                draw_table(ball, ball_x, ball_y, 5, aula);
+                ball_y -= 20;
+            }
+
+            if (btn & BTN_VOL_DOWN)
+                rocket_x -= 10;
+
+            if (btn & BTN_VOL_UP)
+                rocket_x += 10;
+
+            if (rocket_x < -100)
+                rocket_x = -100;
+
+            if (rocket_x > 1180)
+                rocket_x = 1180;
+
+            draw_table(rockets[++idx % 3], rocket_x, 420, 15, aula);
+
+            if (btn & BTN_POWER) {
+                power_timer++;
+            } else {
+                power_timer = 0;
+            }
+
+            if (power_timer > 65) {
+                break;
+            }
+
+            mdelay(45);
         }
-        else
-            draw_table(failed, 115, 380, 30);
-        
-        mdelay(3000);
+
+        if (power_timer < 66) {
+            draw_table(stage_cleared, 50, 180, 30, aula);
+            mdelay(3000);
+        }
 
         display_backlight(false);
 
         display_end();
-
-        ret = -1;
     }
     
     sdmmc_finish(&emmc_sdmmc);
