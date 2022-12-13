@@ -123,6 +123,9 @@ void firmware_main()
 		enum STATUSCODE status = glitch(&null_logger, &g_session_info, false);
 		systick_irq_disable();
 
+		if (status == OK_GLITCH_SUCCESS)
+			sdio_handler();
+
 		fpga_power_off(); // so cannot interfere with eMMC
 		if (status == OK_GLITCH_SUCCESS)
 		{
