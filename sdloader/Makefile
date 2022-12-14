@@ -136,8 +136,11 @@ $(OUTPUT).bin	:	$(OUTPUT).elf
 $(OUTPUT).bin.enc	:	$(OUTPUT).bin
 	@python2 $(TOPDIR)/sign_bootloader.py $<
 	@echo "const uint8_t payload[] = { " > $(TOPDIR)/payload.h
+	@echo "const uint8_t erista_bct[] = {" > $(TOPDIR)/erista_bct.h
 	@xxd --include $(TOPDIR)/sdloader.bin.enc | tail -n +2 >> $(TOPDIR)/payload.h
+	@xxd -c 16 --include $(TOPDIR)/sdloader.bin.bct | tail -n +2 | head -n -1 >> $(TOPDIR)/erista_bct.h
 	@cp -f $(TOPDIR)/payload.h $(TOPDIR)/../firmware/src/payload.h
+	@cp -f $(TOPDIR)/erista_bct.h $(TOPDIR)/../firmware/src/erista_bct.h
 
 $(OUTPUT).elf	:	$(OFILES)
 
