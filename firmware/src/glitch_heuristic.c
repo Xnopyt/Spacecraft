@@ -15,6 +15,8 @@ void heuristic_add_result(glitch_heuristic_t *heuristic, enum GLITCH_RESULT_TYPE
 		case GLITCH_RESULT_FAILED_MMC:
 			heuristic->block_read_count++;
 			break;
+		default:
+			break;
 	}
 }
 
